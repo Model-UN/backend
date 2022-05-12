@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "mundo-backend"
+version = "0.1.0"
+description = ""
+authors = ["CIMUN Engineering <engineering@modelun.net", "James He <james.he@modelun.net>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.75.1"
+uvicorn = "^0.17.6"
+pydantic = "^1.9.0"
+alembic = "^1.7.7"
+SQLAlchemy = "^1.4.35"
+"discord.py" = {extras = ["voice"], version = "^1.7.3"}
+
+[tool.poetry.dev-dependencies]
+black = "^22.3.0"
+pylint = "^2.13.5"
+pytest = "^7.1.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
