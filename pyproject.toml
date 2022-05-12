@@ -6,7 +6,7 @@ authors = ["CIMUN Engineering <engineering@modelun.net", "James He <james.he@mod
 
 [tool.poetry.dependencies]
 python = "^3.9"
-fastapi = "^0.75.1"
+fastapi = "^0.77.1"
 uvicorn = "^0.17.6"
 pydantic = "^1.9.0"
 alembic = "^1.7.7"
