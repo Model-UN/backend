@@ -12,6 +12,7 @@ pydantic = "^1.9.0"
 alembic = "^1.7.7"
 SQLAlchemy = "^1.4.35"
 "discord.py" = {extras = ["voice"], version = "^1.7.3"}
+mangum = "^0.15.0"
 
 [tool.poetry.dev-dependencies]
 black = "^22.3.0"
