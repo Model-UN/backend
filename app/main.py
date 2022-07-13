@@ -10,6 +10,7 @@ app = FastAPI()
 origins = [
     "http://cimun.org",
     "https://cimun.org",
+    "*-model-un.vercel.app"
     "http://localhost",
     "http://localhost:3000"
 ]
