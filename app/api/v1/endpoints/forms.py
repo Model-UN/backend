@@ -120,7 +120,8 @@ async def post_form(id_: str, request: FormResponsesDto = Body(...)):
         url=webhook_url,
         json={
             "content": f":scroll: {tag} New **{'Director' if is_directorate_app else 'Staff'} Application** "
-                       f"submitted by {user.first_name} {user.last_name} ({user.email}).\nApplication ID: `{user.id_}`",
+                       f"submitted by {user.first_name} {user.last_name} ({user.email}).\nApplication ID: `{user.id_}`"
+                       f"\n\nhttps://api.cimun.org/api/v1/users/export",
             "allowed_mentions": {"parse": ["roles" if is_directorate_app else "users"]}
         }
     ).content)
