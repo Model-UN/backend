@@ -1,15 +1,17 @@
 import datetime
-from pprint import pformat
+from csv import DictWriter
+from typing import List
 
 import requests
 from bson import ObjectId
 from fastapi import APIRouter, Body, HTTPException
+from fastapi.responses import StreamingResponse
 from pymongo.results import InsertOneResult
 
 from app.common.enumerations import Collections
 from app.db.client import db
-from app.db.dto.form_dto import FormDto
-from app.db.dto.form_responses_dto import FormResponsesDto
+from app.db.dto.form_dto import FormDto, FormFieldDto
+from app.db.dto.form_responses_dto import FormResponsesDto, FormResponses
 from app.db.dto.user_dto import UserDto
 from app.settings import settings
 
@@ -23,6 +25,9 @@ collection = Collections.FORMS.value
     response_model=FormDto
 )
 async def get_form(id_: str):
+    if id_ == "apply":  # funky staff app workaround logic
+        id_ = settings.staff_application_id
+
     doc = await db[collection].find_one({"_id": ObjectId(id_)})
 
     if doc is not None:
@@ -34,20 +39,55 @@ async def get_form(id_: str):
     )
 
 
-@router.post(
-    "/{id_}",
-    response_description=f"Create single {collection}",
+@router.get(
+    "/{id_}/export",
+    response_description=f"Export {Collections.FORM_RESPONSES.value} for form of _id 'id_' as csv",
 )
-async def post_form(id_: str, request: FormResponsesDto = Body(...)):
+async def export_forms(id_: str):
+    docs = await db[Collections.FORM_RESPONSES.value].find({"form_id": ObjectId(id_)}).to_list(1000)
+
+    objs = []
+    field_names = []
+    for doc in docs:
+        form = FormResponses.parse_obj(doc)
+
+        for key in form.responses.keys():
+            if key not in field_names:
+                field_names.append(key)
+
+        objs.append(form.responses)
+
+    with open("responses.csv", "w") as csv_file:
+        writer = DictWriter(csv_file, fieldnames=field_names)
+        writer.writeheader()
+        for obj in objs:
+            writer.writerow(obj)
+
+    def iterfile():
+        with open("responses.csv", mode="rb") as csv_file_rb:
+            yield from csv_file_rb
+
+    response = StreamingResponse(iterfile(), media_type="text/csv")
+    response.headers["Content-Disposition"] = "attachment; filename=responses.csv"
+    return response
+
+
+@router.post(
+    "/apply",
+    response_description=f"Uses a {collection} as a *staff application*. That is, takes in a form submission and uses"
+                         f"custom logic to create a user instead.",
+)
+async def apply(request: FormResponsesDto = Body(...)):
     """
-    For now, this post form will handle user creation as well. It's insane, but it will
-    do. Eventually, we will want to fix this but for now this is suitable for our needs.
-    :param id_:
+    This POST handles user creation as well. It's insane as it is not exactly RESTful,
+    but it will do. Eventually, we will want to move this whole deal elsewhere, but
+    for now, this is what we have going on.
+
     :param request:
     :return:
     """
     # Get original form user filled out
-    form = FormDto.parse_obj(await db[collection].find_one({"_id": ObjectId(id_)}))
+    form = FormDto.parse_obj(await db[collection].find_one({"_id": ObjectId(settings.staff_application_id)}))
     # Get fields of that form
     fields = form.sections[0].fields
 
@@ -130,3 +170,44 @@ async def post_form(id_: str, request: FormResponsesDto = Body(...)):
         return user
     else:
         raise HTTPException(400, "Something went wrong, please try again.")
+
+
+@router.post(
+    "/{id_}",
+    response_description=f"Create single {collection}",
+)
+async def post_form(id_: str, request: FormResponsesDto = Body(...)):
+    # cast to ObjectId
+    form_id = ObjectId(id_)
+
+    # Get original form user filled out
+    form: FormDto = FormDto.parse_obj(await db[collection].find_one({"_id": ObjectId(id_)}))
+    # Get fields of that form
+    fields: List[FormFieldDto] = form.sections[0].fields
+
+    response_map = {}
+    for response in request.responses:
+        response_map[response.id_] = response.response
+
+    form_responses: FormResponses = FormResponses(form_id=form_id)
+
+    for field in fields:
+        if response_map.get(field.id_):
+            form_responses.responses[field.content] = response_map[field.id_]
+
+            if field.field_type == "SELECTION":
+                selected_id = ObjectId(response_map[field.id_])
+
+                for value in field.values:
+                    if value.id_ == selected_id:
+                        form_responses.responses[field.content] = value.value
+
+    result: InsertOneResult = await db[Collections.FORM_RESPONSES.value].insert_one(document=form_responses.dict())
+
+    if result.inserted_id:
+        return 200
+    else:
+        raise HTTPException(500, "Something went wrong, please try again.")
+
+
+
