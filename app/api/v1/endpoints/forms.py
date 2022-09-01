@@ -207,7 +207,7 @@ async def post_form(id_: str, request: FormResponsesDto = Body(...)):
     if result.inserted_id:
         if "Registration" in form.sections[0].title:
             webhook_url = settings.discord_registrations_webhook_url
-            tag = "james"  # f"<@{settings.discord_usg_admin_id}>"
+            tag = f"<@{settings.discord_usg_admin_id}>"
 
             advisor_name = f"{form_responses.responses['Advisor First Name (Given Name)']} " \
                            f"{form_responses.responses['Advisor Last Name (Surname)']}"
