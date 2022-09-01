@@ -189,7 +189,7 @@ async def post_form(id_: str, request: FormResponsesDto = Body(...)):
     for response in request.responses:
         response_map[response.id_] = response.response
 
-    form_responses: FormResponses = FormResponses(form_id=form_id)
+    form_responses: FormResponses = FormResponses(form_id=form_id, updated_by="USER_INPUT", created_by="USER_INPUT")
 
     for field in fields:
         if response_map.get(field.id_):
@@ -205,6 +205,27 @@ async def post_form(id_: str, request: FormResponsesDto = Body(...)):
     result: InsertOneResult = await db[Collections.FORM_RESPONSES.value].insert_one(document=form_responses.dict())
 
     if result.inserted_id:
+        if "Registration" in form.sections[0].title:
+            webhook_url = settings.discord_registrations_webhook_url
+            tag = "james"  # f"<@{settings.discord_usg_admin_id}>"
+
+            advisor_name = f"{form_responses.responses['Advisor First Name (Given Name)']} " \
+                           f"{form_responses.responses['Advisor Last Name (Surname)']}"
+            advisor_email = f"{form_responses.responses['Advisor Email']}"
+            school = form_responses.responses['School Name']
+            del_count = form_responses.responses['Estimated delegate count']
+            print(requests.post(
+                url=webhook_url,
+                json={
+                    "content": f":rotating_light: :school: {tag} **New School Registration** :school: :rotating_light:"
+                               f"\n\nSubmitted by {advisor_name} ({advisor_email}) from {school}."
+                               f"\nEstimated Delegate Count: {del_count}"
+                               f"\n\nApplication ID: `{form_responses.id_}`"
+                               f"\n\nhttps://api.cimun.org/api/v1/forms/{form_id}/export",
+                    "allowed_mentions": {"parse": ["users"]}
+                }
+            ).content)
+
         return 200
     else:
         raise HTTPException(500, "Something went wrong, please try again.")

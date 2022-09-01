@@ -2,6 +2,7 @@ from typing import Any, Dict, List
 
 from pydantic import BaseModel, Field
 
+from app.db.dto.base_dto import BaseDto
 from app.db.dto.ext.object_id import ObjectId
 
 
@@ -20,10 +21,9 @@ class FormResponsesDto(BaseModel):
     responses: List[FormResponse] = Field(...)
 
 
-class FormResponses(BaseModel):
+class FormResponses(BaseDto):
     """
     The object for which forms are inserted to Mongo
     """
-    id_: ObjectId = Field(default_factory=ObjectId, alias="_id")
     form_id: ObjectId
     responses: Dict[str, str] = Field(default_factory=dict)
