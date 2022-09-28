@@ -4,7 +4,7 @@ from typing import List
 
 import requests
 from bson import ObjectId
-from fastapi import APIRouter, Body, HTTPException
+from fastapi import APIRouter, Body, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pymongo.results import InsertOneResult
 
@@ -43,7 +43,14 @@ async def get_form(id_: str):
     "/{id_}/export",
     response_description=f"Export {Collections.FORM_RESPONSES.value} for form of _id 'id_' as csv",
 )
-async def export_forms(id_: str):
+async def export_forms(id_: str, request: Request):
+    if not request.scope["aws.event"].get("queryStringParameters") or \
+            not request.scope["aws.event"]["queryStringParameters"].get("authorization") or \
+            request.scope["aws.event"]["queryStringParameters"]["authorization"] != settings.secret_key:
+        return HTTPException(
+            status_code=401
+        )
+
     docs = await db[Collections.FORM_RESPONSES.value].find({"form_id": ObjectId(id_)}).to_list(1000)
 
     objs = []
@@ -154,15 +161,14 @@ async def apply(request: FormResponsesDto = Body(...)):
     result: InsertOneResult = await db[Collections.USERS.value].insert_one(document=user_dict)
 
     webhook_url = settings.discord_applications_webhook_url
-    tag = f"<@&{settings.discord_steering_committee_id}>" if is_directorate_app \
-        else f"<@{settings.discord_chief_of_staff_id}>"
+    tag = f"<@{settings.discord_chief_of_staff_id}>"
     print(requests.post(
         url=webhook_url,
         json={
             "content": f":scroll: {tag} New **{'Director' if is_directorate_app else 'Staff'} Application** "
                        f"submitted by {user.first_name} {user.last_name} ({user.email}).\nApplication ID: `{user.id_}`"
-                       f"\n\nhttps://api.cimun.org/api/v1/users/export",
-            "allowed_mentions": {"parse": ["roles" if is_directorate_app else "users"]}
+                       f"\n\nhttps://api.cimun.org/api/v1/users/export?authorization={settings.secret_key}",
+            "allowed_mentions": {"parse": ["users"]}
         }
     ).content)
 
@@ -221,7 +227,7 @@ async def post_form(id_: str, request: FormResponsesDto = Body(...)):
                                f"\n\nSubmitted by {advisor_name} ({advisor_email}) from {school}."
                                f"\nEstimated Delegate Count: {del_count}"
                                f"\n\nApplication ID: `{form_responses.id_}`"
-                               f"\n\nhttps://api.cimun.org/api/v1/forms/{form_id}/export",
+                               f"\n\nhttps://api.cimun.org/api/v1/forms/{form_id}/export?authorization={settings.secret_key}",
                     "allowed_mentions": {"parse": ["users"]}
                 }
             ).content)
@@ -229,6 +235,3 @@ async def post_form(id_: str, request: FormResponsesDto = Body(...)):
         return 200
     else:
         raise HTTPException(500, "Something went wrong, please try again.")
-
-
-
