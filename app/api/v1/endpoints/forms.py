@@ -20,36 +20,17 @@ collection = Collections.FORMS.value
 
 
 @router.get(
-    "/{id_}",
-    response_description=f"Get data for a single {collection}",
-    response_model=FormDto
-)
-async def get_form(id_: str):
-    if id_ == "apply":  # funky staff app workaround logic
-        id_ = settings.staff_application_id
-
-    doc = await db[collection].find_one({"_id": ObjectId(id_)})
-
-    if doc is not None:
-        return doc
-
-    raise HTTPException(
-        status_code=404,
-        detail=f"{collection.title()} of id: {id_} not found."
-    )
-
-
-@router.get(
-    "/{id_}/export",
+    "/export",
     response_description=f"Export {Collections.FORM_RESPONSES.value} for form of _id 'id_' as csv",
 )
-async def export_forms(id_: str, request: Request):
+async def export_forms(request: Request):
     if not request.scope["aws.event"].get("queryStringParameters") or \
             not request.scope["aws.event"]["queryStringParameters"].get("authorization") or \
             request.scope["aws.event"]["queryStringParameters"]["authorization"] != settings.secret_key:
         return HTTPException(
             status_code=401
         )
+    id_ = request.scope["aws.event"]["queryStringParameters"].get("id")
 
     docs = await db[Collections.FORM_RESPONSES.value].find({"form_id": ObjectId(id_)}).to_list(1000)
 
@@ -64,14 +45,14 @@ async def export_forms(id_: str, request: Request):
 
         objs.append(form.responses)
 
-    with open("responses.csv", "w") as csv_file:
+    with open("/tmp/responses.csv", "w") as csv_file:
         writer = DictWriter(csv_file, fieldnames=field_names)
         writer.writeheader()
         for obj in objs:
             writer.writerow(obj)
 
     def iterfile():
-        with open("responses.csv", mode="rb") as csv_file_rb:
+        with open("/tmp/responses.csv", mode="rb") as csv_file_rb:
             yield from csv_file_rb
 
     response = StreamingResponse(iterfile(), media_type="text/csv")
@@ -178,6 +159,26 @@ async def apply(request: FormResponsesDto = Body(...)):
         raise HTTPException(400, "Something went wrong, please try again.")
 
 
+@router.get(
+    "/{id_}",
+    response_description=f"Get data for a single {collection}",
+    response_model=FormDto
+)
+async def get_form(id_: str):
+    if id_ == "apply":  # funky staff app workaround logic
+        id_ = settings.staff_application_id
+
+    doc = await db[collection].find_one({"_id": ObjectId(id_)})
+
+    if doc is not None:
+        return doc
+
+    raise HTTPException(
+        status_code=404,
+        detail=f"{collection.title()} of id: {id_} not found."
+    )
+
+
 @router.post(
     "/{id_}",
     response_description=f"Create single {collection}",
@@ -227,7 +228,8 @@ async def post_form(id_: str, request: FormResponsesDto = Body(...)):
                                f"\n\nSubmitted by {advisor_name} ({advisor_email}) from {school}."
                                f"\nEstimated Delegate Count: {del_count}"
                                f"\n\nApplication ID: `{form_responses.id_}`"
-                               f"\n\nhttps://api.cimun.org/api/v1/forms/{form_id}/export?authorization={settings.secret_key}",
+                               f"\n\nhttps://api.cimun.org/api/v1/forms/export?id={form_id}"
+                               f"&authorization={settings.secret_key}",
                     "allowed_mentions": {"parse": ["users"]}
                 }
             ).content)

@@ -69,15 +69,15 @@ async def export_users(request: Request):
         if field_name not in field_names:
             field_names.append(field_name)
 
-    with open("users.csv", "w") as userscsv:
-        writer = DictWriter(userscsv, fieldnames=field_names)
+    with open("/tmp/users.csv", "w") as users_csv:
+        writer = DictWriter(users_csv, fieldnames=field_names)
         writer.writeheader()
         for obj in objs:
             writer.writerow(obj)
 
     def iterfile():
-        with open("users.csv", mode="rb") as userscsv:
-            yield from userscsv
+        with open("/tmp/users.csv", mode="rb") as csv:
+            yield from csv
 
     response = StreamingResponse(iterfile(), media_type="text/csv")
     response.headers["Content-Disposition"] = "attachment; filename=users.csv"
